@@ -108,7 +108,7 @@
     </header>
     <main>
       <div class="hero">
-        <div><p class="eyebrow">一起点，分得清。</p><h1 id="title">这桌的快乐，都点齐了。</h1><p class="subtitle" id="store">本地点餐核对与分餐清单</p></div>
+        <div><p class="eyebrow">一起点，分得清。</p><h1 id="title">这桌的快乐，都点齐了。</h1><p class="subtitle" id="store">本地点餐核对与分餐清单</p><p class="subtitle" id="fulfillment"></p></div>
         <div class="actions"><button class="button primary" id="copy" type="button">复制分餐清单</button><button class="button" id="print" type="button">打印核对单</button></div>
       </div>
       <p class="notice" id="notice"><strong>本页不创建订单。</strong>在 AI 对话中确认后下单；勾选仅用于本页核对进度。</p>
@@ -168,6 +168,7 @@
         document.title = String(data.title) + " · 麦麦合单官";
       }
       if (data.store_name) byId("store").textContent = "本次门店 · " + data.store_name;
+      byId("fulfillment").textContent = data.fulfillment || "";
       if (isDemo) byId("notice").textContent = "演示数据不代表真实价格 / 可售餐品。在 AI 对话中确认后下单，本页不创建订单。";
       byId("member-count").textContent = members.length;
       byId("budget").textContent = validMoney(data.budget_fen) ? money(data.budget_fen) : "未设置";
@@ -179,6 +180,10 @@
         if (validMoney(data.quote.original_price_fen)) detail.push("原价 " + money(data.quote.original_price_fen));
         if (validMoney(data.quote.discount_fen)) detail.push("优惠 " + money(data.quote.discount_fen));
         byId("price-note").textContent = (detail.length ? detail.join(" · ") + "；" : "") + "试算金额不代表已付款";
+        const fees = [["delivery_price_fen", "配送费"], ["packing_price_fen", "打包费"], ["tableware_price_fen", "餐具费"]]
+          .filter(([field]) => validMoney(data.quote[field]))
+          .map(([field, label]) => label + " " + money(data.quote[field]));
+        if (fees.length) byId("price-note").textContent += "。总价已含：" + fees.join(" · ");
       } else {
         const quoteLabels = {stale:"报价已过期", missing:"未试算", invalid:"试算无效"};
         const status = quoteLabels[data.quote_status] ? data.quote_status : "invalid";

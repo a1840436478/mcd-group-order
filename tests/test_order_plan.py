@@ -1,11 +1,13 @@
 """Offline behavioral checks; all catalog IDs and responses are synthetic."""
 
 from copy import deepcopy
+from datetime import datetime
 from html.parser import HTMLParser
 import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +32,12 @@ class GroupOrderTests(unittest.TestCase):
         if confirmation is None:
             confirmation = confirmation_fingerprint(self.plan, receipt, pickup)
         return prepare_order(self.plan, receipt, confirmed_fingerprint=confirmation, take_way_code=pickup)
+
+    def delivery(self):
+        self.plan["context"].update(orderType=2, beType=2, beCode="DEMO_DELIVERY_BE",
+                                    addressId="PRIVATE_ADDRESS_ID", remark="请联系收货人")
+        self.response["data"].pop("takeWayList")
+        self.response["data"].update(price=8300, originalPrice=9300, deliveryPrice=700, packingPrice=200, tablewarePrice=100)
 
     def test_quote_and_order_preserve_coupons_combo_and_zero_quantity_removal(self):
         original = deepcopy(self.plan)
@@ -204,7 +212,7 @@ class GroupOrderTests(unittest.TestCase):
             prepare_quote(self.plan)
         del self.plan["lines"][0]["item"]["remark"]
         self.plan["context"]["beType"] = 2
-        with self.assertRaisesRegex(PlanError, "仅支持"):
+        with self.assertRaisesRegex(PlanError, "订单类型必须匹配"):
             prepare_quote(self.plan)
 
     def test_boolean_quantities_and_partial_coupons_rejected(self):
@@ -218,8 +226,118 @@ class GroupOrderTests(unittest.TestCase):
 
     def test_pickup_rejects_be_code_instead_of_silently_dropping_it(self):
         self.plan["context"]["beCode"] = "UNSUPPORTED_PICKUP_BE"
-        with self.assertRaisesRegex(PlanError, "不支持的字段"):
+        with self.assertRaisesRegex(PlanError, "到店取餐不得传"):
             prepare_quote(self.plan)
+
+    def test_delivery_sends_address_and_remark_only_when_creating_order(self):
+        self.delivery()
+        self.plan["context"]["needTableware"] = True
+        prepared = prepare_quote(self.plan)
+        self.assertNotIn("addressId", prepared["arguments"])
+        self.assertNotIn("remark", prepared["arguments"])
+        receipt = record_quote(self.plan, prepared, self.response)
+        confirmed = confirmation_fingerprint(self.plan, receipt)
+        order = prepare_order(self.plan, receipt, confirmed_fingerprint=confirmed)
+        self.assertEqual(order["addressId"], "PRIVATE_ADDRESS_ID")
+        self.assertEqual(order["remark"], "请联系收货人")
+        self.assertEqual(order["beCode"], "DEMO_DELIVERY_BE")
+        self.assertEqual((order["orderType"], order["beType"]), (2, 2))
+        self.assertTrue(order["needTableware"])
+        self.assertNotIn("takeWayCode", order)
+        self.assertEqual(order["items"], prepared["arguments"]["items"])
+        with self.assertRaisesRegex(PlanError, "外送不传"):
+            confirmation_fingerprint(self.plan, receipt, "DEMO_PICKUP")
+
+    def test_delivery_requires_address_business_code_and_valid_remark(self):
+        self.delivery()
+        for key in ("addressId", "beCode"):
+            original = self.plan["context"].pop(key)
+            with self.subTest(key=key), self.assertRaisesRegex(PlanError, key):
+                prepare_quote(self.plan)
+            self.plan["context"][key] = original
+        for remark in ("字" * 51, 123):
+            self.plan["context"]["remark"] = remark
+            with self.subTest(remark=remark), self.assertRaisesRegex(PlanError, "最多 50 字"):
+                prepare_quote(self.plan)
+        self.plan["context"]["remark"] = "字" * 50
+        prepare_quote(self.plan)
+
+    def test_reservation_is_preserved_for_pickup_and_delivery(self):
+        for delivery in (False, True):
+            if delivery:
+                self.delivery()
+            self.plan["context"]["reservationDate"] = "2099-10-14 12:30"
+            with self.subTest(delivery=delivery):
+                self.assertEqual(prepare_quote(self.plan)["arguments"]["reservationDate"], "2099-10-14 12:30")
+                receipt = self.quoted()
+                pickup = None if delivery else "DEMO_PICKUP"
+                confirmed = confirmation_fingerprint(self.plan, receipt, pickup)
+                order = prepare_order(self.plan, receipt, confirmed_fingerprint=confirmed, take_way_code=pickup)
+                self.assertEqual(order["reservationDate"], "2099-10-14 12:30")
+                self.assertEqual(order["orderType"], 2 if delivery else 1)
+                view = report_data(self.plan, receipt)
+                self.assertIn("2099-10-14 12:30（北京时间）", view["fulfillment"])
+
+    def test_reservation_rejects_invalid_dates_and_past_time(self):
+        for value in ("2099-2-01 12:30", "2099-02-30 12:30", "2099-10-14T12:30", "2099-10-14 12:30:00", "", True, "2000-01-01 12:30"):
+            self.plan["context"]["reservationDate"] = value
+            with self.subTest(value=value), self.assertRaises(PlanError):
+                prepare_quote(self.plan)
+
+    def test_reservation_expiring_after_quote_blocks_order(self):
+        self.plan["context"]["reservationDate"] = "2099-10-14 12:30"
+        receipt = self.quoted()
+        confirmed = confirmation_fingerprint(self.plan, receipt, "DEMO_PICKUP")
+        # Beijing 12:31: reservation passed, even though the stored plan did not change.
+        with patch("order_plan.datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2099, 10, 14, 12, 31)
+            with self.assertRaisesRegex(PlanError, "预约时间已过"):
+                self.order(receipt, confirmed)
+            self.assertIsNone(report_data(self.plan, receipt)["quote"])
+
+    def test_delivery_address_business_code_and_schedule_change_invalidate_quote(self):
+        self.delivery()
+        receipt = self.quoted()
+        for key, value in (("addressId", "OTHER_ADDRESS"), ("beCode", "OTHER_DELIVERY_BE"),
+                           ("reservationDate", "2099-10-14 12:30"), ("remark", "改送前台")):
+            plan = deepcopy(self.plan)
+            plan["context"][key] = value
+            with self.subTest(key=key):
+                self.assertEqual(report_data(plan, receipt)["quote_status"], "stale")
+                with self.assertRaisesRegex(PlanError, "旧报价失效"):
+                    confirmation_fingerprint(plan, receipt)
+
+    def test_delivery_budget_includes_fees_without_adding_them_twice(self):
+        self.delivery()
+        self.plan["budget_fen"] = 8000
+        receipt = self.quoted()
+        confirmed = confirmation_fingerprint(self.plan, receipt)
+        with self.assertRaisesRegex(PlanError, "超过预算"):
+            prepare_order(self.plan, receipt, confirmed_fingerprint=confirmed)
+        view = report_data(self.plan, receipt)
+        self.assertEqual(view["quote"]["price_fen"], 8300)
+        self.assertTrue(any("3.00" in issue for issue in view["issues"]))
+        self.plan["budget_fen"] = 8300
+        receipt = self.quoted()
+        prepare_order(self.plan, receipt, confirmed_fingerprint=confirmation_fingerprint(self.plan, receipt))
+
+    def test_delivery_report_displays_fees_but_excludes_private_address_and_remark(self):
+        self.delivery()
+        view = report_data(self.plan, self.quoted())
+        self.assertEqual(view["fulfillment"], "麦乐送 · 尽快配送")
+        self.assertEqual(view["quote"]["delivery_price_fen"], 700)
+        self.assertEqual(view["quote"]["packing_price_fen"], 200)
+        self.assertEqual(view["quote"]["tableware_price_fen"], 100)
+        self.assertIn("配送费（已计入总价）：¥7.00", view["checklist"])
+        for private in ("PRIVATE_ADDRESS_ID", "DEMO_DELIVERY_BE", "请联系收货人"):
+            self.assertNotIn(private, json.dumps(view, ensure_ascii=False))
+        del self.response["data"]["deliveryPrice"]
+        view = report_data(self.plan, self.quoted())
+        self.assertIsNone(view["quote"]["delivery_price_fen"])
+        self.assertNotIn("配送费", view["checklist"])
+        self.response["data"]["packingPrice"] = -1
+        with self.assertRaises(PlanError):
+            self.quoted()
 
     def test_round_and_component_codes_must_match_live_string_schema(self):
         group = self.plan["lines"][0]["item"]["roundList"][0]

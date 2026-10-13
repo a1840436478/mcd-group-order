@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -57,10 +58,31 @@ def validate_plan(plan: dict) -> None:
     _text(plan["title"], "title")
     _text(plan["store_name"], "store_name")
     context = plan["context"]
-    _fields(context, {"storeCode", "orderType", "beType"}, {"needTableware"}, "context")
+    _fields(context, {"storeCode", "orderType", "beType"},
+            {"needTableware", "beCode", "addressId", "remark", "reservationDate"}, "context")
     _text(context["storeCode"], "storeCode")
     for key in ("orderType", "beType"):
-        _require(type(context[key]) is int and context[key] == 1, "第一版仅支持立即到店取餐（orderType=1, beType=1）")
+        _require(type(context[key]) is int, f"{key} 必须是整数")
+    _require((context["orderType"], context["beType"]) in ((1, 1), (2, 2)),
+             "订单类型必须匹配：到店取餐为 1/1，麦乐送为 2/2")
+    if context["orderType"] == 2:
+        for key in ("beCode", "addressId"):
+            _text(context.get(key), key)
+        if "remark" in context:
+            _require(isinstance(context["remark"], str) and len(context["remark"]) <= 50,
+                     "配送备注 remark 必须是最多 50 字的文本")
+    else:
+        _require(not {"beCode", "addressId", "remark"} & context.keys(),
+                 "到店取餐不得传 beCode、addressId 或配送备注")
+    if "reservationDate" in context:
+        value = context["reservationDate"]
+        _text(value, "reservationDate")
+        try:
+            scheduled = datetime.strptime(value, "%Y-%m-%d %H:%M")
+        except ValueError:
+            raise PlanError("预约时间必须是有效的 yyyy-MM-dd HH:mm（北京时间）") from None
+        _require(scheduled.strftime("%Y-%m-%d %H:%M") == value,
+                 "预约时间格式必须为 yyyy-MM-dd HH:mm（北京时间）")
     if "needTableware" in context:
         _require(type(context["needTableware"]) is bool, "needTableware 必须是布尔值")
     if plan["budget_fen"] is not None:
@@ -131,12 +153,24 @@ def _fingerprint(value: Any) -> str:
     return sha256(data.encode("utf-8")).hexdigest()
 
 
+def _check_reservation_time(plan: dict) -> None:
+    value = plan["context"].get("reservationDate")
+    if value and plan["mode"] == "live":
+        now = datetime.now(timezone(timedelta(hours=8))).replace(tzinfo=None)
+        _require(datetime.strptime(value, "%Y-%m-%d %H:%M") > now,
+                 "预约时间已过，请重新选择门店支持的时段并试算")
+
+
 def prepare_quote(plan: dict, *, allow_demo: bool = False) -> dict:
     """Build calculate-price arguments. Explicit demo use is offline only."""
     validate_plan(plan)
+    _check_reservation_time(plan)
     _require(not plan["unresolved"], "仍有待确认问题：" + "；".join(plan["unresolved"]))
     _require(plan["mode"] == "live" or allow_demo, "演示计划禁止发送真实 MCP；allow_demo 仅供离线测试")
     arguments = deepcopy(plan["context"])
+    # Address and delivery remarks belong to create-order, not calculate-price.
+    arguments.pop("addressId", None)
+    arguments.pop("remark", None)
     # Preserve complete items, including zero-quantity removals and combo choices.
     # Do not merge same-code items: their customizations/coupons may differ.
     arguments["items"] = [deepcopy(line["item"]) for line in plan["lines"]]
@@ -150,7 +184,7 @@ def _quote_data(plan: dict, response: dict) -> dict:
     data = response.get("data")
     _require(isinstance(data, dict), "试算响应缺少 data")
     _integer(data.get("price"), "试算 data.price（分）")
-    for key in ("originalPrice", "discount", "productPrice", "deliveryPrice", "tablewarePrice"):
+    for key in ("originalPrice", "discount", "productPrice", "deliveryPrice", "packingPrice", "tablewarePrice"):
         if key in data:
             _integer(data[key], f"试算 data.{key}（分）")
     _require(isinstance(data.get("productList"), list) and bool(data["productList"]), "试算响应缺少商品核对清单 productList")
@@ -177,13 +211,14 @@ def record_quote(plan: dict, prepared: dict, response: dict) -> dict:
 
 def _current_quote(plan: dict, receipt: dict) -> dict:
     validate_plan(plan)
+    _check_reservation_time(plan)
     _require(not plan["unresolved"], "仍有待确认问题，不能下单")
     _fields(receipt, {"plan_fingerprint", "response"}, set(), "试算收据")
     _require(receipt["plan_fingerprint"] == _fingerprint(plan), "计划已修改，旧报价失效，请重新试算")
     return _quote_data(plan, receipt["response"])
 
 
-def _take_way(data: dict, selected: str) -> None:
+def _take_way(data: dict, selected: str | None) -> None:
     _text(selected, "take_way_code")
     options = data.get("takeWayList")
     _require(isinstance(options, list) and bool(options), "试算未返回可用取餐方式，不能猜测 takeWayCode")
@@ -191,15 +226,18 @@ def _take_way(data: dict, selected: str) -> None:
              "取餐方式不在本次试算返回的列表中")
 
 
-def confirmation_fingerprint(plan: dict, receipt: dict, take_way_code: str) -> str:
+def confirmation_fingerprint(plan: dict, receipt: dict, take_way_code: str | None = None) -> str:
     """Identify the precise plan, quote and pickup option shown to the user."""
     data = _current_quote(plan, receipt)
-    _take_way(data, take_way_code)
+    if plan["context"]["orderType"] == 1:
+        _take_way(data, take_way_code)
+    else:
+        _require(take_way_code is None, "外送不传 takeWayCode")
     return _fingerprint({"plan": plan, "receipt": receipt, "take_way_code": take_way_code})
 
 
 def prepare_order(plan: dict, receipt: dict, *, confirmed_fingerprint: str,
-                  take_way_code: str) -> dict:
+                  take_way_code: str | None = None) -> dict:
     """Build create-order arguments after the organizer confirms this quote.
 
     This function does not prove human consent and never sends an order itself.
@@ -214,7 +252,12 @@ def prepare_order(plan: dict, receipt: dict, *, confirmed_fingerprint: str,
     _require(confirmed_fingerprint == expected, "尚未确认当前计划、报价和取餐方式，不能生成下单请求")
     arguments = prepare_quote(plan)["arguments"]
     # The live create-order schema requires orderType, just like calculate-price.
-    arguments["takeWayCode"] = take_way_code
+    if plan["context"]["orderType"] == 1:
+        arguments["takeWayCode"] = take_way_code
+    else:
+        arguments["addressId"] = plan["context"]["addressId"]
+        if "remark" in plan["context"]:
+            arguments["remark"] = plan["context"]["remark"]
     return arguments
 
 
@@ -233,7 +276,8 @@ def report_data(plan: dict, receipt: dict | None = None) -> dict:
             data = _current_quote(plan, receipt)
             status = "current"
             quote = {"price_fen": data["price"], "original_price_fen": data.get("originalPrice"),
-                     "discount_fen": data.get("discount")}
+                     "discount_fen": data.get("discount"), "delivery_price_fen": data.get("deliveryPrice"),
+                     "packing_price_fen": data.get("packingPrice"), "tableware_price_fen": data.get("tablewarePrice")}
             if plan["budget_fen"] is not None and data["price"] > plan["budget_fen"]:
                 issues.append(f"超出预算 {(data['price'] - plan['budget_fen']) / 100:.2f} 元，不能按当前预算下单")
         except PlanError as error:
@@ -248,16 +292,25 @@ def report_data(plan: dict, receipt: dict | None = None) -> dict:
                     view["items"].append({"name": line["name"], "quantity": allocation["quantity"], "notes": line.get("notes", "")})
         members.append(view)
     totals = [{"name": line["name"], "quantity": line["item"]["quantity"], "notes": line.get("notes", "")} for line in plan["lines"]]
-    checklist = [f"{plan['title']}｜{'演示数据，非真实订单' if plan['mode'] == 'demo' else '点餐核对清单，非下单凭证'}", f"门店：{plan['store_name']}"]
+    delivery = plan["context"]["orderType"] == 2
+    reservation = plan["context"].get("reservationDate")
+    timing = f"预约 {reservation}（北京时间）" if reservation else ("尽快配送" if delivery else "立即取餐")
+    fulfillment = ("麦乐送" if delivery else "到店取餐") + " · " + timing
+    checklist = [f"{plan['title']}｜{'演示数据，非真实订单' if plan['mode'] == 'demo' else '点餐核对清单，非下单凭证'}",
+                 f"门店：{plan['store_name']}", fulfillment]
     for member in members:
         meals = "；".join(f"{item['name']} × {item['quantity']}" + (f"（{item['notes']}）" if item['notes'] else "") for item in member["items"])
         checklist.append(f"{member['name']}：{meals}")
     if quote:
         checklist.append(f"{'演示试算' if plan['mode'] == 'demo' else '本次试算应付'}：¥{quote['price_fen'] / 100:.2f}")
+        for field, label in (("delivery_price_fen", "配送费"), ("packing_price_fen", "打包费"), ("tableware_price_fen", "餐具费")):
+            if quote[field] is not None:
+                checklist.append(f"{label}（已计入总价）：¥{quote[field] / 100:.2f}")
     else:
         checklist.append("当前没有可用报价，请先重新试算。")
     checklist.extend(f"待处理：{issue}" for issue in issues)
     return {"title": plan["title"], "mode": plan["mode"], "store_name": plan["store_name"],
+            "fulfillment": fulfillment,
             "budget_fen": plan["budget_fen"], "fingerprint": _fingerprint(plan), "quote_status": status,
             "quote": quote, "issues": issues, "members": members, "totals": totals,
             "checklist": "\n".join(checklist), "changes": list(plan["changes"])}
