@@ -1,0 +1,45 @@
+{
+  "mode": "demo",
+  "title": "今天这顿，安排明白了",
+  "store_name": "午餐集合店 · 虚构演示门店",
+  "context": {"storeCode": "DEMO_STORE", "orderType": 1, "beType": 1},
+  "budget_fen": 9000,
+  "members": [
+    {"id": "li", "name": "小李", "requests": ["一份巨无霸套餐", "饮料换无糖可乐", "汉堡去酸黄瓜"], "source": "巨无霸套餐，饮料换无糖可乐。补充一下，我的汉堡不要酸黄瓜。"},
+    {"id": "wang", "name": "小王", "requests": ["一个麦辣鸡腿堡", "追加一杯美式"], "source": "麦辣鸡腿堡，只要汉堡。我也加一杯美式吧。"},
+    {"id": "chen", "name": "小陈", "requests": ["只要一杯美式"], "source": "我只要一杯美式。"}
+  ],
+  "lines": [
+    {
+      "id": "li-combo",
+      "name": "巨无霸套餐（示例）",
+      "notes": "汉堡去酸黄瓜 · 无糖可乐 · 中薯",
+      "item": {
+        "productCode": "DEMO_COMBO",
+        "quantity": 1,
+        "roundList": [
+          {"round": "1", "comboItemList": [{"code": "DEMO_BIG_MAC", "quantity": 1, "modification": {"values": [{"code": "DEMO_PICKLE", "quantity": 0, "key": "DEMO_REMOVE"}]}}]},
+          {"round": "2", "comboItemList": [{"code": "DEMO_ZERO_COLA", "quantity": 1}]},
+          {"round": "3", "comboItemList": [{"code": "DEMO_FRIES", "quantity": 1}]}
+        ]
+      },
+      "allocations": [{"member_id": "li", "quantity": 1}]
+    },
+    {
+      "id": "wang-burger",
+      "name": "麦辣鸡腿堡（示例）",
+      "notes": "单点汉堡",
+      "item": {"productCode": "DEMO_BURGER", "quantity": 1, "couponId": "DEMO_COUPON_ID", "couponCode": "DEMO_COUPON_CODE"},
+      "allocations": [{"member_id": "wang", "quantity": 1}]
+    },
+    {
+      "id": "coffee",
+      "name": "美式咖啡（示例）",
+      "notes": "一人一杯",
+      "item": {"productCode": "DEMO_COFFEE", "quantity": 2},
+      "allocations": [{"member_id": "wang", "quantity": 1}, {"member_id": "chen", "quantity": 1}]
+    }
+  ],
+  "unresolved": [],
+  "changes": ["小李补充去酸黄瓜；套餐和无糖饮料要求保留。", "小王追加一杯美式；原有汉堡保留。", "美式共两杯，小王和小陈各一杯。"]
+}

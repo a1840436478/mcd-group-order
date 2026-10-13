@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "code": 200,
+  "message": "合成演示响应，未调用官方 MCP；不是实际价格或优惠承诺",
+  "data": {
+    "productOriginalPrice": 8300,
+    "productPrice": 7300,
+    "deliveryPrice": 0,
+    "originalPrice": 8300,
+    "discount": 1000,
+    "price": 7300,
+    "productList": [
+      {"productCode": "DEMO_COMBO", "quantity": 1, "subtotal": 3500},
+      {"productCode": "DEMO_BURGER", "quantity": 1, "subtotal": 1800},
+      {"productCode": "DEMO_COFFEE", "quantity": 2, "subtotal": 2000}
+    ],
+    "takeWayList": [{"code": "DEMO_PICKUP", "name": "虚构取餐方式，仅用于离线测试"}]
+  }
+}

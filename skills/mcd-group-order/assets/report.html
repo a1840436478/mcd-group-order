@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>麦麦合单官 · 点餐核对单</title>
+  <style>
+    :root{--paper:#fffdf8;--canvas:#f4f0e7;--ink:#25251f;--muted:#747267;--line:#e4dfd2;--red:#b9362d;--yellow:#f4cf59;--green:#326247;--radius:18px}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--canvas);color:var(--ink);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:14px;line-height:1.6}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #bd6b2c;outline-offset:4px}
+    [hidden]{display:none!important}
+    .page{max-width:1320px;margin:0 auto;padding:30px 42px 26px}
+    .masthead{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:23px;border-bottom:1px solid var(--ink)}
+    .brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:800;letter-spacing:.03em}
+    .brand-mark{width:38px;height:38px;background:var(--yellow);border-radius:12px;display:grid;place-items:center;font-size:23px;line-height:1;transform:rotate(-7deg)}
+    .brand small{font-size:10px;letter-spacing:.14em;display:block;color:var(--muted);font-weight:500}
+    .mode{padding:6px 13px;border:1px solid #d8b956;border-radius:30px;background:#fff2bf;font-size:12px;font-weight:700;white-space:nowrap}
+    .mode.live{background:#edf1e8;color:var(--green);border-color:#c3d0bd}
+    .hero{padding:34px 0 25px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+    .eyebrow{font-size:10px;letter-spacing:.2em;font-weight:700;color:var(--red);margin:0 0 10px}
+    h1{font-size:clamp(28px,3.7vw,42px);line-height:1.25;letter-spacing:-.04em;margin:0 0 12px;font-weight:800;overflow-wrap:anywhere}
+    .subtitle{margin:0;color:var(--muted)}
+    .actions{display:flex;gap:9px;flex-shrink:0}
+    .button{border:1px solid var(--ink);border-radius:9px;padding:10px 16px;background:transparent;font-weight:600;white-space:nowrap}
+    .button.primary{background:var(--ink);color:var(--paper)}
+    .button:hover{background:#e8e2d6}
+    .button.primary:hover{background:#45443b}
+    .notice{padding:13px 17px;border-radius:10px;border:1px solid #ead6a8;background:#fcf3dd;color:#6d5523;font-size:13px;margin:0 0 20px}
+    .notice strong{font-weight:700}
+    .metrics{display:grid;grid-template-columns:1fr 1.45fr 1fr;gap:13px;margin-bottom:29px}
+    .metric{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;position:relative}
+    .metric.featured{background:var(--yellow);border-color:var(--yellow)}
+    .metric-label{font-size:12px;margin:0 0 6px;color:#5f5c4f;display:flex;justify-content:space-between;gap:8px}
+    .metric-value{font-size:34px;line-height:1.3;font-weight:750;letter-spacing:-.045em;margin:0}
+    .metric-value small{font-size:15px;font-weight:500;margin-left:6px;letter-spacing:0}
+    .metric-note{font-size:11px;margin:7px 0 0;color:#66604b;min-height:18px}
+    .quote-tag{font-size:10px;border:1px solid #8b772f;border-radius:4px;padding:0 5px;align-self:center;color:#544618;white-space:nowrap}
+    .layout{display:grid;grid-template-columns:minmax(0,1fr) 315px;gap:25px;align-items:start}
+    .section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px}
+    h2{font-size:18px;line-height:1.4;letter-spacing:-.02em;margin:0;font-weight:750}
+    .section-kicker{display:inline-block;color:var(--red);font-size:10px;letter-spacing:.12em;margin-right:9px;font-weight:700;vertical-align:2px}
+    .progress{font-size:12px;color:var(--muted);white-space:nowrap}
+    .member-tools{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .search{position:relative;flex:1}
+    .search input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--paper);color:var(--ink)}
+    .search input::placeholder{color:#8b877b}
+    .tools-hint{font-size:11px;color:var(--muted);margin:0;flex:1}
+    .members{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .member{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;break-inside:avoid}
+    .member.checked{border-color:#98b39d}
+    .member-top{padding:17px 18px 13px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #eee9df}
+    .member-identity{display:flex;align-items:center;gap:10px;min-width:0}
+    .avatar{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#eee6d7;font-size:13px;font-weight:700;flex-shrink:0}
+    h3{font-size:16px;line-height:1.5;margin:0;overflow-wrap:anywhere}
+    .check{font-size:11px;display:flex;align-items:center;gap:5px;color:var(--muted);flex-shrink:0;cursor:pointer}
+    .check input{accent-color:var(--green);width:15px;height:15px;margin:0;cursor:pointer}
+    .member-body{padding:14px 18px 16px}
+    .requests{display:flex;flex-wrap:wrap;gap:5px;padding:0;margin:0 0 12px;list-style:none}
+    .request{font-size:11px;color:#755231;background:#f3ecdf;padding:3px 7px;border-radius:5px;overflow-wrap:anywhere;max-width:100%}
+    .item-list{list-style:none;padding:0;margin:0}
+    .item{padding:9px 0;border-bottom:1px dashed var(--line)}
+    .item:first-child{padding-top:0}
+    .item:last-child{border-bottom:0;padding-bottom:0}
+    .item-main{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+    .item-name{font-size:13px;overflow-wrap:anywhere}
+    .quantity{font-weight:700;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .item-note{font-size:11px;color:var(--red);margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+    .source{margin-top:14px;font-size:11px;color:var(--muted)}
+    .source summary{cursor:pointer;display:list-item}
+    .source p{margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;border-left:2px solid var(--line);padding-left:8px}
+    .rail{display:grid;gap:16px}
+    .panel{padding:20px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);break-inside:avoid}
+    .panel h2{font-size:16px;margin-bottom:16px}
+    .panel .item{padding:11px 0}
+    .panel .item:first-child{padding-top:0}
+    .panel .item:last-child{padding-bottom:0}
+    .panel-caption{font-size:11px;color:var(--muted);margin:-8px 0 16px}
+    .issue-panel{border-top:3px solid var(--red)}
+    .count{font-size:11px;display:inline-block;vertical-align:2px;margin-left:6px;background:#f5e5df;color:var(--red);border-radius:4px;padding:1px 6px}
+    .text-list{padding-left:17px;margin:0;font-size:12px;color:#575449}
+    .text-list li{margin-bottom:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .text-list li:last-child{margin-bottom:0}
+    .empty{font-size:12px;color:var(--muted);margin:0}
+    .empty-members{grid-column:1/-1;border:1px dashed #ccc3b1;border-radius:var(--radius);padding:35px;text-align:center;font-size:13px;color:var(--muted)}
+    .copy-panel{margin:20px 0;padding:18px;border:1px solid var(--line);background:var(--paper);border-radius:12px}
+    .copy-panel label{font-size:13px;font-weight:700;display:block;margin-bottom:8px}
+    .copy-panel textarea{width:100%;height:190px;resize:vertical;background:#faf8f1;border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:10px;font-size:12px;line-height:1.7}
+    .feedback{font-size:12px;color:var(--green);margin:0 0 12px;min-height:0}
+    .footer{margin-top:30px;padding-top:17px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:22px;font-size:11px;color:var(--muted)}
+    .footer p{margin:0}
+    .footer strong{color:var(--ink);font-weight:600}
+    .footer-note{text-align:right}
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+    @media(max-width:1050px){.page{padding:25px}.layout{grid-template-columns:minmax(0,1fr) 280px;gap:18px}.members{grid-template-columns:1fr}.hero{align-items:flex-start}.actions{flex-direction:column}.tools-hint{display:none}}
+    @media(max-width:700px){.page{padding:20px 17px}.masthead{padding-bottom:17px}.brand{font-size:18px}.brand small{font-size:8px}.mode{font-size:10px;padding:5px 9px}.hero{padding:27px 0 21px;display:block}.actions{flex-direction:row;margin-top:20px}.button{flex:1;padding:10px 13px}.metrics{gap:8px;margin-bottom:24px;grid-template-columns:1fr 1fr}.metric{padding:15px;border-radius:13px}.metric.featured{grid-column:1/-1;grid-row:1}.metric-value{font-size:29px}.metric.featured .metric-value{font-size:36px}.metric-note{font-size:10px}.layout{grid-template-columns:1fr;gap:24px}.members{grid-template-columns:1fr}.rail{gap:14px}.footer{display:block}.footer-note{text-align:left;margin-top:8px!important}.notice{font-size:12px}}
+    @media print{body{background:white;font-size:11px}.page{max-width:none;padding:0}.masthead{padding-bottom:12px}.hero{padding:20px 0 15px}h1{font-size:28px}.actions,.member-tools,.copy-panel,.feedback{display:none!important}.notice{padding:9px 12px;font-size:11px}.metrics{margin-bottom:18px;gap:10px}.metric{padding:12px 15px}.metric-value{font-size:26px}.metric-note{font-size:10px}.layout{display:block}.members{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.member[hidden]{display:block!important}.member{border-radius:9px}.member-top{padding:11px 13px}.member-body{padding:11px 13px}.rail{margin-top:20px;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.panel{padding:15px;border-radius:9px}.source summary{display:none}.source p{display:block}.footer{margin-top:20px;font-size:10px}.empty-members.search-empty{display:none!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:13mm}}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">麦</span><span>麦麦合单官<small>ONE TABLE, EVERYONE COUNTED.</small></span></div>
+      <span class="mode" id="mode">点餐核对单</span>
+    </header>
+    <main>
+      <div class="hero">
+        <div><p class="eyebrow">一起点，分得清。</p><h1 id="title">这桌的快乐，都点齐了。</h1><p class="subtitle" id="store">本地点餐核对与分餐清单</p></div>
+        <div class="actions"><button class="button primary" id="copy" type="button">复制分餐清单</button><button class="button" id="print" type="button">打印核对单</button></div>
+      </div>
+      <p class="notice" id="notice"><strong>本页不创建订单。</strong>在 AI 对话中确认后下单；勾选仅用于本页核对进度。</p>
+      <section class="metrics" aria-label="合单概况">
+        <div class="metric"><p class="metric-label">本次用餐人数</p><p class="metric-value"><span id="member-count">—</span><small>人</small></p><p class="metric-note">每个人的需求，逐一核对</p></div>
+        <div class="metric featured"><p class="metric-label">试算实付<span class="quote-tag" id="quote-status">未试算</span></p><p class="metric-value" id="price">—</p><p class="metric-note" id="price-note">请在 AI 对话中完成试算</p></div>
+        <div class="metric"><p class="metric-label">本次总预算</p><p class="metric-value" id="budget">—</p><p class="metric-note">以确认下单时的实际金额为准</p></div>
+      </section>
+      <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+      <section class="copy-panel" id="copy-panel" hidden><label for="copy-text">自动复制不可用，请选中下方清单手动复制</label><textarea id="copy-text" readonly spellcheck="false"></textarea></section>
+      <div class="layout">
+        <section aria-labelledby="members-heading">
+          <div class="section-heading"><h2 id="members-heading"><span class="section-kicker">01 /</span>按人分餐</h2><span class="progress" id="progress" aria-live="polite">已核对 0 / 0 人</span></div>
+          <div class="member-tools"><div class="search"><label for="search" class="sr-only">按人名筛选</label><input id="search" type="search" placeholder="输入人名，找到 TA 的那一份" autocomplete="off"></div><p class="tools-hint">勾选只在本页有效，刷新后清空。<br>核对完成不代表已授权或已下单。</p></div>
+          <div class="members" id="members"></div>
+        </section>
+        <aside class="rail" aria-label="合单总览">
+          <section class="panel"><h2><span class="section-kicker">02 /</span>餐品总清单</h2><p class="panel-caption">同名餐品请同时核对备注</p><ul class="item-list" id="totals"></ul><p class="empty" id="totals-empty" hidden>暂无餐品，等待补充点餐需求。</p></section>
+          <section class="panel issue-panel"><h2>待解决<span class="count" id="issue-count">0</span></h2><ul class="text-list" id="issues"></ul><p class="empty" id="issues-empty" hidden>当前没有待解决事项。</p></section>
+          <section class="panel" id="changes-panel"><h2>本次变更</h2><ul class="text-list" id="changes"></ul><p class="empty" id="changes-empty" hidden>暂无变更记录。</p></section>
+        </aside>
+      </div>
+    </main>
+    <footer class="footer"><p><strong>在 AI 对话中确认后下单，本页不创建订单。</strong><br>勾选仅代表核对进度，不替代下单授权。</p><p class="footer-note">演示数据不代表真实价格 / 可售餐品。<br>麦麦合单官 · 让每一份都有着落</p></footer>
+  </div>
+  <script id="report-data" type="application/json">__REPORT_DATA__</script>
+  <script>
+    "use strict";
+    (() => {
+      const byId = (id) => document.getElementById(id);
+      const element = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = String(text);
+        return node;
+      };
+      const money = (fen) => "¥" + (fen / 100).toFixed(2);
+      const validMoney = (fen) => Number.isSafeInteger(fen) && fen >= 0;
+      const list = (value) => Array.isArray(value) ? value : [];
+      let data;
+      try {
+        data = JSON.parse(byId("report-data").textContent);
+        if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid report");
+      } catch {
+        byId("notice").textContent = "清单数据无法读取，请重新生成核对单。本页不创建订单。";
+        byId("copy").disabled = true;
+        byId("search").disabled = true;
+        byId("print").addEventListener("click", () => window.print());
+        return;
+      }
+      const members = list(data.members);
+      const isDemo = data.mode === "demo";
+      byId("mode").textContent = isDemo ? "演示模式 · DEMO" : "真实模式 · 本地核对";
+      if (!isDemo) byId("mode").classList.add("live");
+      if (data.title) {
+        byId("title").textContent = data.title;
+        document.title = String(data.title) + " · 麦麦合单官";
+      }
+      if (data.store_name) byId("store").textContent = "本次门店 · " + data.store_name;
+      if (isDemo) byId("notice").textContent = "演示数据不代表真实价格 / 可售餐品。在 AI 对话中确认后下单，本页不创建订单。";
+      byId("member-count").textContent = members.length;
+      byId("budget").textContent = validMoney(data.budget_fen) ? money(data.budget_fen) : "未设置";
+      const currentQuote = data.quote_status === "current" && data.quote && validMoney(data.quote.price_fen);
+      if (currentQuote) {
+        byId("price").textContent = money(data.quote.price_fen);
+        byId("quote-status").textContent = "当前试算";
+        const detail = [];
+        if (validMoney(data.quote.original_price_fen)) detail.push("原价 " + money(data.quote.original_price_fen));
+        if (validMoney(data.quote.discount_fen)) detail.push("优惠 " + money(data.quote.discount_fen));
+        byId("price-note").textContent = (detail.length ? detail.join(" · ") + "；" : "") + "试算金额不代表已付款";
+      } else {
+        const quoteLabels = {stale:"报价已过期", missing:"未试算", invalid:"试算无效"};
+        const status = quoteLabels[data.quote_status] ? data.quote_status : "invalid";
+        byId("quote-status").textContent = quoteLabels[status];
+        byId("price-note").textContent = status === "missing" ? "请在 AI 对话中完成试算" : "请在 AI 对话中重新试算后确认";
+      }
+      const itemNode = (item) => {
+        const row = element("li", "item");
+        const main = element("div", "item-main");
+        main.append(element("span", "item-name", item.name || "未命名餐品"), element("span", "quantity", "× " + item.quantity));
+        row.append(main);
+        if (item.notes) row.append(element("p", "item-note", item.notes));
+        return row;
+      };
+      const memberCards = [];
+      const checks = [];
+      const updateProgress = () => {
+        byId("progress").textContent = "已核对 " + checks.filter((check) => check.checked).length + " / " + members.length + " 人";
+      };
+      for (const member of members) {
+        const card = element("article", "member");
+        const top = element("div", "member-top");
+        const identity = element("div", "member-identity");
+        const memberName = String(member.name || "未命名成员");
+        const avatar = element("span", "avatar", Array.from(memberName)[0]);
+        avatar.setAttribute("aria-hidden", "true");
+        identity.append(avatar, element("h3", "", memberName));
+        const label = element("label", "check");
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.setAttribute("aria-label", "已核对 " + memberName + " 的餐品（不代表下单）");
+        label.append(check, element("span", "", "已核对"));
+        top.append(identity, label);
+        const body = element("div", "member-body");
+        if (list(member.requests).length) {
+          const requests = element("ul", "requests");
+          for (const request of member.requests) requests.append(element("li", "request", request));
+          body.append(requests);
+        }
+        const items = element("ul", "item-list");
+        for (const item of list(member.items)) items.append(itemNode(item));
+        body.append(items);
+        if (!list(member.items).length) body.append(element("p", "empty", "尚未分配餐品，请先补充或确认需求。"));
+        if (member.source) {
+          const source = element("details", "source");
+          source.append(element("summary", "", "查看原始需求"), element("p", "", member.source));
+          body.append(source);
+        }
+        card.append(top, body);
+        byId("members").append(card);
+        memberCards.push({card, name:memberName.toLocaleLowerCase()});
+        checks.push(check);
+        check.addEventListener("change", () => { card.classList.toggle("checked", check.checked); updateProgress(); });
+      }
+      updateProgress();
+      const emptyMembers = element("p", "empty-members", "还没有成员，等待补充点餐需求。");
+      emptyMembers.hidden = members.length > 0;
+      byId("members").append(emptyMembers);
+      byId("search").addEventListener("input", (event) => {
+        const query = event.target.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        for (const entry of memberCards) {
+          entry.card.hidden = !entry.name.includes(query);
+          if (!entry.card.hidden) visible += 1;
+        }
+        emptyMembers.hidden = visible > 0;
+        emptyMembers.classList.toggle("search-empty", members.length > 0);
+        emptyMembers.textContent = members.length ? "没有找到这个名字，请换一个关键词。" : "还没有成员，等待补充点餐需求。";
+      });
+      for (const item of list(data.totals)) byId("totals").append(itemNode(item));
+      byId("totals-empty").hidden = list(data.totals).length > 0;
+      for (const key of ["issues", "changes"]) {
+        const values = list(data[key]);
+        for (const value of values) byId(key).append(element("li", "", value));
+        byId(key + "-empty").hidden = values.length > 0;
+      }
+      byId("issue-count").textContent = list(data.issues).length;
+      byId("copy").addEventListener("click", async () => {
+        const text = String(data.checklist || "暂无可复制的清单。");
+        try {
+          if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
+          await navigator.clipboard.writeText(text);
+          byId("copy-panel").hidden = true;
+          byId("feedback").textContent = "分餐清单已复制。请在 AI 对话中确认后下单。";
+        } catch {
+          byId("copy-text").value = text;
+          byId("copy-panel").hidden = false;
+          byId("feedback").textContent = "请手动复制下方清单。";
+          byId("copy-text").focus();
+          byId("copy-text").select();
+        }
+      });
+      byId("print").addEventListener("click", () => window.print());
+    })();
+  </script>
+</body>
+</html>

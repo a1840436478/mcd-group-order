@@ -1,0 +1,33 @@
+# Generated reports and private live input
+output/
+local/
+
+# Local credentials and client configuration
+.env
+.env.*
+!.env.example
+mcp-config.json
+mcp.json
+.mcp.json
+credentials.json
+secrets.json
+*.pem
+*.key
+
+# Python environments and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+.coverage
+htmlcov/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
